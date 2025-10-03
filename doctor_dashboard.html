@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Doctor Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #f2f6fc; }
+    .header { background-color: #007bff; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    canvas { max-width: 100%; height: 300px; }
+    .form-label { font-weight: 500; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Doctor Dashboard</h2>
+    <p class="mb-0">Full Access: View Vitals & Control AI Predictions</p>
+  </div>
+
+  <div class="section">
+    <h4>Patient Information</h4>
+    <div class="row align-items-center">
+      <div class="col-md-4">
+        <label for="patientSelect" class="form-label"><strong>Select Patient:</strong></label>
+        <select id="patientSelect" class="form-select" onchange="updatePatientInfo()">
+          <option value="PID001" selected>PID001</option>
+          <option value="PID002">PID002</option>
+          <option value="PID003">PID003</option>
+          <option value="PID004">PID004</option>
+          <option value="PID005">PID005</option>
+          <option value="PID006">PID006</option>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <p class="mb-1"><strong>Name:</strong> <span id="patientName">John Doe</span></p>
+        <p class="mb-1"><strong>Age:</strong> <span id="patientAge">52</span></p>
+        <p class="mb-0"><strong>Room:</strong> <span id="patientRoom">ICU - 3B</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>Vitals (Live Charts)</h4>
+    <div class="row">
+        <div class="col-md-6 mb-4"><canvas id="tempChart"></canvas></div>
+        <div class="col-md-6 mb-4"><canvas id="hrChart"></canvas></div>
+        <div class="col-md-6 mb-4"><canvas id="spo2Chart"></canvas></div>
+        <div class="col-md-6 mb-4"><canvas id="respChart"></canvas></div>
+        <div class="col-md-6 mb-4"><canvas id="bpChart"></canvas></div>
+        <div class="col-md-6 mb-4"><canvas id="ecgChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>Batch Prediction</h4>
+    <p><strong>Status:</strong> <span id="status" class="fw-bold">IDLE</span></p>
+    <p><strong>Last Prediction:</strong> <span id="prediction">N/A</span></p>
+    <p><strong>Confidence:</strong> <span id="confidence">N/A</span></p>
+    <p><strong>Model Accuracy:</strong> <span id="accuracy">N/A</span></p>
+    <div class="mt-3">
+        <button id="analysisButton" class="btn btn-success" onclick="startAnalysis()">Start Analysis (Collect 10 Samples)</button>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h4>Manual Prediction Input</h4>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label">Temperature (°C)</label><input type="number" id="manual_temp" class="form-control" value="37.0"></div>
+        <div class="col-md-4"><label class="form-label">Heart Rate (bpm)</label><input type="number" id="manual_hr" class="form-control" value="80"></div>
+        <div class="col-md-4"><label class="form-label">SpO₂ (%)</label><input type="number" id="manual_spo2" class="form-control" value="98"></div>
+        <div class="col-md-4"><label class="form-label">Resp. Rate (rpm)</label><input type="number" id="manual_resp" class="form-control" value="16"></div>
+        <div class="col-md-4"><label class="form-label">Systolic BP (mmHg)</label><input type="number" id="manual_bp" class="form-control" value="120"></div>
+        <div class="col-md-4"><label class="form-label">ECG (mV)</label><input type="number" id="manual_ecg" class="form-control" value="1.0"></div>
+    </div>
+    <button class="btn btn-primary mt-3" onclick="manualPredict()">Predict Manually</button>
+    <div class="mt-3">
+        <p><strong>Manual Prediction Result:</strong> <span id="manual_prediction" class="fw-bold">---</span></p>
+    </div>
+  </div>
+
+  <div class="text-center">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+
+  <script>
+    // --- Patient Information Logic ---
+    const patientData = {
+      'PID001': { name: 'John Doe', age: 52, room: 'ICU - 3B' },
+      'PID002': { name: 'Jane Smith', age: 67, room: 'CCU - 1A' },
+      'PID003': { name: 'Peter Jones', age: 45, room: 'General - 5C' },
+      'PID004': { name: 'Mary Williams', age: 78, room: 'ICU - 3C' },
+      'PID005': { name: 'David Brown', age: 34, room: 'Ortho - 2D' },
+      'PID006': { name: 'Susan Davis', age: 81, room: 'CCU - 1B' }
+    };
+
+    function updatePatientInfo() {
+      const selectedId = document.getElementById('patientSelect').value;
+      const patient = patientData[selectedId];
+      document.getElementById('patientName').textContent = patient.name;
+      document.getElementById('patientAge').textContent = patient.age;
+      document.getElementById('patientRoom').textContent = patient.room;
+    }
+    
+    // --- WebSocket and Chart.js Logic ---
+    const maxDataPoints = 20;
+    // IMPORTANT: Make sure this IP address is correct for your computer!
+    const ws = new WebSocket("ws://localhost:8000/ws/doctor");
+
+    function createChart(id, label, unit, borderColor) {
+      const ctx = document.getElementById(id).getContext('2d');
+      return new Chart(ctx, {
+        type: 'line', 
+        data: { 
+          labels: [], 
+          datasets: [{ 
+            label: `${label} (${unit})`, 
+            data: [], 
+            borderColor, 
+            fill: false, 
+            tension: 0.4 
+          }] 
+        },
+        options: { 
+          responsive: true, 
+          animation: false, 
+          scales: { 
+            x: { title: { display: true, text: 'Time' } }, 
+            y: { title: { display: true, text: unit } } 
+          } 
+        }
+      });
+    }
+
+    const charts = {
+        temperature: createChart('tempChart', 'Temperature', '°C', 'orange'),
+        heartrate: createChart('hrChart', 'Heart Rate', 'bpm', 'red'),
+        spo2: createChart('spo2Chart', 'SpO₂', '%', 'green'),
+        respRate: createChart('respChart', 'Resp. Rate', 'rpm', 'blue'),
+        bp_raw: createChart('bpChart', 'Blood Pressure', 'raw', 'brown'),
+        ecg_mv: createChart('ecgChart', 'ECG Signal', 'mV', 'purple')
+    };
+
+    function updateChart(chart, timestamp, value) {
+      if (!chart || value === null || typeof value === 'undefined') return;
+      if (chart.data.labels.length >= maxDataPoints) { 
+        chart.data.labels.shift(); 
+        chart.data.datasets[0].data.shift(); 
+      }
+      chart.data.labels.push(timestamp);
+      chart.data.datasets[0].data.push(value);
+      chart.update();
+    }
+    
+    function startAnalysis() {
+        ws.send(JSON.stringify({command: "start_analysis"}));
+        document.getElementById("analysisButton").disabled = true;
+        document.getElementById("analysisButton").textContent = "Collecting Data...";
+        document.getElementById("status").textContent = "COLLECTING";
+    }
+
+    function manualPredict() {
+        const vitals = {
+            temperature: parseFloat(document.getElementById("manual_temp").value),
+            heartrate: parseFloat(document.getElementById("manual_hr").value),
+            spo2: parseFloat(document.getElementById("manual_spo2").value),
+            respRate: parseFloat(document.getElementById("manual_resp").value),
+            bp_raw: parseFloat(document.getElementById("manual_bp").value),
+            ecg_mv: parseFloat(document.getElementById("manual_ecg").value)
+        };
+        const message = { type: "manual_predict", data: vitals };
+        ws.send(JSON.stringify(message));
+        document.getElementById("manual_prediction").textContent = "Requesting...";
+    }
+
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+        const timestamp = new Date().toLocaleTimeString();
+
+        if (response.type === "live_vitals") {
+            const data = response.data;
+            updateChart(charts.temperature, timestamp, data.temperature);
+            updateChart(charts.heartrate, timestamp, data.heartrate);
+            updateChart(charts.spo2, timestamp, data.spo2);
+            updateChart(charts.respRate, timestamp, data.respRate);
+            updateChart(charts.bp_raw, timestamp, data.bp_raw);
+            updateChart(charts.ecg_mv, timestamp, data.ecg_mv);
+            
+            // If the live data includes a persisted prediction, show it
+            if (response.prediction) {
+                document.getElementById("prediction").textContent = response.prediction;
+                document.getElementById("confidence").textContent = response.confidence ? `${response.confidence}%` : "N/A";
+                document.getElementById("accuracy").textContent = response.model_accuracy ? `${response.model_accuracy}%` : "N/A";
+            }
+
+        } else if (response.type === "collection_status") {
+            document.getElementById("status").textContent = response.message;
+        } else if (response.type === "final_prediction") {
+            document.getElementById("status").textContent = "IDLE";
+            document.getElementById("prediction").textContent = response.prediction;
+            document.getElementById("confidence").textContent = response.confidence ? `${response.confidence}%` : "N/A";
+            document.getElementById("accuracy").textContent = response.model_accuracy ? `${response.model_accuracy}%` : "N/A";
+            document.getElementById("analysisButton").disabled = false;
+            document.getElementById("analysisButton").textContent = "Start Analysis (Collect 10 Samples)";
+        } else if (response.type === "manual_response") {
+            document.getElementById("manual_prediction").textContent = `${response.prediction} (Confidence: ${response.confidence}%)`;
+        }
+    };
+  </script>
+</body>
+</html>

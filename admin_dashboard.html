@@ -1,0 +1,203 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f0f4f8; }
+    .header { background-color: #343a40; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Admin Dashboard</h2>
+    <p class="mb-0">Access: Manage Users & Monitor Activity Logs</p>
+  </div>
+
+  <div class="section">
+    <h4>User Management</h4>
+    <table class="table table-bordered">
+      <thead><tr><th>User ID</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>doc01</td><td>Doctor</td><td>Active</td><td><button class="btn btn-sm btn-warning">Disable</button></td></tr>
+        <tr><td>nurse01</td><td>Nurse</td><td>Active</td><td><button class="btn btn-sm btn-warning">Disable</button></td></tr>
+        <tr><td>recept01</td><td>Receptionist</td><td>Inactive</td><td><button class="btn btn-sm btn-success">Enable</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h4>Suspicious Activity Log</h4>
+    <p>⚠️ Nurse accessed ECG data from unauthorized terminal at 2:13 AM.</p>
+    <p>⚠️ Lab technician tried to access admin panel on 2025-07-08.</p>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+</body>
+</html>-->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .header { background-color: #343a40; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .log-box {
+      background-color: #212529;
+      color: #00ff41;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 15px;
+      border-radius: 5px;
+      height: 300px;
+      overflow-y: scroll;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Administrator Dashboard</h2>
+    <p class="mb-0">System Control: Manage Users & Monitor Activity</p>
+  </div>
+
+  <div class="section">
+    <h4>User Management</h4>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="userTableBody">
+        </tbody>
+    </table>
+  </div>
+  
+  <div class="section">
+      <h4>Live Activity Log</h4>
+      <div id="activityLog" class="log-box">
+          <p>Connecting to activity log...</p>
+      </div>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="logout()" class="btn btn-danger">Logout</button>
+  </div>
+  
+  <script>
+    // Store the admin's own user ID to prevent self-disable and for logging
+    const currentAdminId = sessionStorage.getItem('userId');
+
+    // Function to fetch all users and build the table
+    async function fetchUsers() {
+        const response = await fetch("http://localhost:8000/users");
+        const users = await response.json();
+        const tableBody = document.getElementById("userTableBody");
+        tableBody.innerHTML = ""; // Clear existing table
+
+        for (const userId in users) {
+            const user = users[userId];
+            const statusBadge = user.enabled ? `<span class="badge bg-success">Enabled</span>` : `<span class="badge bg-danger">Disabled</span>`;
+            const actionButtonText = user.enabled ? "Disable" : "Enable";
+            const actionButtonClass = user.enabled ? "btn-warning" : "btn-success";
+            
+            const row = `
+                <tr>
+                    <td>${userId}</td>
+                    <td>${user.role}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm ${actionButtonClass}" onclick="toggleStatus('${userId}')" ${userId === currentAdminId ? 'disabled' : ''}>
+                            ${actionButtonText}
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tableBody.innerHTML += row;
+        }
+    }
+
+    // Function to send a request to enable/disable a user
+    async function toggleStatus(userId) {
+        await fetch("http://localhost:8000/users/toggle-status", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId, adminId: currentAdminId })
+        });
+        // The table will be refreshed automatically via WebSocket message
+    }
+
+    // Function to get the initial log history
+    async function fetchInitialLogs() {
+        const response = await fetch("http://localhost:8000/activity-log");
+        const logs = await response.json();
+        const logBox = document.getElementById("activityLog");
+        logBox.innerHTML = ""; // Clear initial message
+        logs.forEach(log => appendLog(log.trim()));
+    }
+    
+    // Function to add a new log message to the box
+    function appendLog(logMessage) {
+        const logBox = document.getElementById("activityLog");
+        const logEntry = document.createElement("p");
+        logEntry.className = "mb-1";
+        // Remove the timestamp from the raw log for a cleaner display
+        logEntry.textContent = logMessage.substring(logMessage.indexOf("] ") + 2);
+        logBox.appendChild(logEntry);
+        logBox.scrollTop = logBox.scrollHeight; // Auto-scroll to bottom
+    }
+
+    // Connect to the WebSocket for live updates
+    const ws = new WebSocket("ws://localhost:8000/ws/admin");
+
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+        if (response.type === "user_update") {
+            // Refresh the whole user table when a change occurs
+            fetchUsers();
+        } else if (response.type === "activity_log") {
+            // Add the new log message in real-time
+            appendLog(response.log);
+        }
+    };
+
+    // Updated logout function to notify the server
+    function logout() {
+        fetch("http://localhost:8000/logout", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentAdminId })
+        }).then(() => {
+            sessionStorage.removeItem('userId'); // Clear session
+            window.location.href = 'index2.html';
+        });
+    }
+
+    // Initial load of data when the page opens
+    window.onload = () => {
+        if (!currentAdminId || currentAdminId !== 'admin01') {
+            // Simple check to ensure only an admin is on this page
+            window.location.href = 'index2.html';
+            return;
+        }
+        fetchUsers();
+        fetchInitialLogs();
+    };
+  </script>
+</body>
+</html>

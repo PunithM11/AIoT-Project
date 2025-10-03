@@ -1,0 +1,459 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab Technician Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { background-color: #eef7f2; }
+    .header { background-color: #28a745; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; }
+    #reportOutput { white-space: pre-wrap; background-color: #f8f9fa; border-radius: 5px; padding: 15px; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Lab Technician Dashboard</h2>
+    <p class="mb-0">Access: View Patient Vitals & Generate Reports</p>
+  </div>
+
+  <div class="section">
+    <h4>Patient Information</h4>
+    <div class="row align-items-center">
+      <div class="col-md-4">
+        <label for="patientSelect" class="form-label"><strong>Select Patient:</strong></label>
+        <select id="patientSelect" class="form-select" onchange="updatePatientInfo()">
+          <option value="PID001" selected>PID001</option>
+          <option value="PID002">PID002</option>
+          <option value="PID003">PID003</option>
+          <option value="PID004">PID004</option>
+          <option value="PID005">PID005</option>
+          <option value="PID006">PID006</option>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <p class="mb-1"><strong>Name:</strong> <span id="patientName">John Doe</span></p>
+        <p class="mb-0"><strong>Room:</strong> <span id="patientRoom">ICU - 3B</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>Patient Vitals Snapshot (Updates on Doctor's Analysis)</h4>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item"><strong>Temperature:</strong> <span id="vital_temp">N/A</span> °C</li>
+      <li class="list-group-item"><strong>Heart Rate:</strong> <span id="vital_hr">N/A</span> bpm</li>
+      <li class="list-group-item"><strong>SpO₂:</strong> <span id="vital_spo2">N/A</span> %</li>
+      <li class="list-group-item"><strong>Respiratory Rate:</strong> <span id="vital_resp">N/A</span> rpm</li>
+      <li class="list-group-item"><strong>Blood Pressure:</strong> <span id="vital_bp">N/A</span> mmHg</li>
+      <li class="list-group-item"><strong>ECG:</strong> <span id="vital_ecg">N/A</span> mV</li>
+      <li class="list-group-item"><strong>Prediction:</strong> <span id="prediction" class="fw-bold">N/A</span></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h4>Generate & Distribute Report</h4>
+    <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
+    <div class="mt-3">
+        <h5>Generated Report:</h5>
+        <pre id="reportOutput">Report will appear here...</pre>
+    </div>
+    <div class="mt-3">
+        <button class="btn btn-info" id="downloadPdfBtn" onclick="downloadPDF()" disabled>Download as PDF</button>
+        <button class="btn btn-secondary" id="uploadBtn" onclick="uploadReport()" disabled>Upload to Cloud</button>
+        <button class="btn btn-secondary" id="emailBtn" onclick="sendEmail()" disabled>Send Email</button>
+    </div>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+  
+  <script>
+    window.jsPDF = window.jspdf.jsPDF;
+
+    const patientData = {
+      'PID001': { name: 'John Doe', room: 'ICU - 3B' },
+      'PID002': { name: 'Jane Smith', room: 'CCU - 1A' },
+      'PID003': { name: 'Peter Jones', room: 'General - 5C' },
+      'PID004': { name: 'Mary Williams', room: 'ICU - 3C' },
+      'PID005': { name: 'David Brown', room: 'Ortho - 2D' },
+      'PID006': { name: 'Susan Davis', room: 'CCU - 1B' }
+    };
+    let currentVitals = {}; 
+
+    function updatePatientInfo() {
+      const selectedId = document.getElementById('patientSelect').value;
+      const patient = patientData[selectedId];
+      document.getElementById('patientName').textContent = patient.name;
+      document.getElementById('patientRoom').textContent = patient.room;
+    }
+    
+    // Connect as a "lab" user to avoid command handling
+    const ws = new WebSocket("ws://10.77.197.249:8000/ws/lab_technician");
+
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+        
+        if (response.type === "final_prediction") {
+            // Store the final prediction data
+            currentVitals = response;
+            
+            // Update the display with the data from the prediction
+            const data = response.data || {};
+            document.getElementById('vital_temp').textContent = data.temperature || 'N/A';
+            document.getElementById('vital_hr').textContent = data.heartrate || 'N/A';
+            document.getElementById('vital_spo2').textContent = data.spo2 || 'N/A';
+            document.getElementById('vital_resp').textContent = data.respRate || 'N/A';
+            document.getElementById('vital_bp').textContent = data.bp_raw || 'N/A';
+            document.getElementById('vital_ecg').textContent = data.ecg_mv || 'N/A';
+            
+            document.getElementById('prediction').textContent = `${response.prediction} (Confidence: ${response.confidence}%)`;
+        } else if (response.type === "state_reset") {
+            // Clear the display if the doctor logs out
+            document.getElementById('vital_temp').textContent = 'N/A';
+            document.getElementById('vital_hr').textContent = 'N/A';
+            document.getElementById('vital_spo2').textContent = 'N/A';
+            document.getElementById('vital_resp').textContent = 'N/A';
+            document.getElementById('vital_bp').textContent = 'N/A';
+            document.getElementById('vital_ecg').textContent = 'N/A';
+            document.getElementById('prediction').textContent = 'N/A';
+        }
+    };
+
+    function getPrescription(prediction) {
+        switch(prediction) {
+            case 'Fever': return 'Consult doctor, monitor temperature, and recommend rest.';
+            case 'Hypoxia': return 'Immediate medical attention required. Check oxygen supply.';
+            case 'Bradycardia': return 'Consult cardiologist. Patient may need further monitoring.';
+            case 'Tachycardia': return 'Consult cardiologist. Advise patient to avoid stimulants.';
+            case 'Hypertension': return 'Consult doctor for blood pressure medication review.';
+            case 'Hypotension': return 'Advise patient to rise slowly. Consult doctor.';
+            case 'Arrhythmia': return 'ECG monitoring recommended. Refer to cardiologist.';
+            case 'Normal': return 'Vitals appear to be within normal ranges. Continue routine monitoring.';
+            default: return 'No specific prescription. Awaiting doctor review.';
+        }
+    }
+
+    function generateReport() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const patient = patientData[selectedId];
+        const data = currentVitals.data || {};
+        
+        const reportText = `
+** Patient Health Report **
+
+Patient ID:   ${selectedId}
+Patient Name: ${patient.name}
+Room:         ${patient.room}
+-------------------------------------
+Vitals Snapshot (at time of analysis):
+  - Temperature:    ${data.temperature || 'N/A'} °C
+  - Heart Rate:     ${data.heartrate || 'N/A'} bpm
+  - SpO₂:           ${data.spo2 || 'N/A'} %
+  - Respiratory Rate: ${data.respRate || 'N/A'} rpm
+  - Blood Pressure: ${data.bp_raw || 'N/A'} mmHg
+  - ECG:            ${data.ecg_mv || 'N/A'} mV
+-------------------------------------
+AI Analysis:
+  - Prediction:     ${currentVitals.prediction || 'N/A'}
+  - Confidence:     ${currentVitals.confidence || 'N/A'} %
+  - Model Accuracy: ${currentVitals.model_accuracy || 'N/A'} %
+-------------------------------------
+Doctor's Prescription (Suggested):
+  - ${getPrescription(currentVitals.prediction)}
+        `;
+        
+        document.getElementById('reportOutput').textContent = reportText.trim();
+        document.getElementById('downloadPdfBtn').disabled = false;
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('emailBtn').disabled = false;
+    }
+
+    function downloadPDF() {
+        const reportText = document.getElementById('reportOutput').textContent;
+        const selectedId = document.getElementById('patientSelect').value;
+        const doc = new jsPDF();
+        
+        doc.setFontSize(12);
+        doc.text(reportText, 10, 10);
+        doc.save(`Health_Report_${selectedId}.pdf`);
+    }
+
+    function uploadReport() {
+        alert("Simulating report upload to the cloud...");
+    }
+
+    function sendEmail() {
+        const patientName = document.getElementById('patientName').textContent;
+        alert(`Simulating sending report to ${patientName}...`);
+    }
+  </script>
+</body>
+</html>-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab Technician Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { background-color: #eef7f2; }
+    .header { background-color: #28a745; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; }
+    #reportOutput { white-space: pre-wrap; background-color: #f8f9fa; border-radius: 5px; padding: 15px; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Lab Technician Dashboard</h2>
+    <p class="mb-0">Access: View Patient Vitals & Generate Reports</p>
+  </div>
+
+  <div class="section">
+    <h4>Patient Information</h4>
+    <div class="row align-items-center">
+      <div class="col-md-4">
+        <label for="patientSelect" class="form-label"><strong>Select Patient:</strong></label>
+        <select id="patientSelect" class="form-select" onchange="updatePatientInfo()">
+          <option value="PID001" selected>PID001</option>
+          <option value="PID002">PID002</option>
+          <option value="PID003">PID003</option>
+          <option value="PID004">PID004</option>
+          <option value="PID005">PID005</option>
+          <option value="PID006">PID006</option>
+        </select>
+      </div>
+      <div class="col-md-8">
+        <p class="mb-1"><strong>Name:</strong> <span id="patientName">John Doe</span></p>
+        <p class="mb-0"><strong>Room:</strong> <span id="patientRoom">ICU - 3B</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h4>Patient Vitals Snapshot (From Last Doctor's Analysis)</h4>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item"><strong>Temperature:</strong> <span id="vital_temp">N/A</span> °C</li>
+      <li class="list-group-item"><strong>Heart Rate:</strong> <span id="vital_hr">N/A</span> bpm</li>
+      <li class="list-group-item"><strong>SpO₂:</strong> <span id="vital_spo2">N/A</span> %</li>
+      <li class="list-group-item"><strong>Respiratory Rate:</strong> <span id="vital_resp">N/A</span> rpm</li>
+      <li class="list-group-item"><strong>Blood Pressure:</strong> <span id="vital_bp">N/A</span> mmHg</li>
+      <li class="list-group-item"><strong>ECG:</strong> <span id="vital_ecg">N/A</span> mV</li>
+      <li class="list-group-item"><strong>AI Prediction:</strong> <span id="prediction" class="fw-bold">N/A</span></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h4>Generate & Distribute Report</h4>
+    <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
+    <div class="mt-3">
+        <h5>Generated Report:</h5>
+        <pre id="reportOutput">Report will appear here...</pre>
+    </div>
+    <div class="mt-3">
+        <button class="btn btn-info" id="downloadPdfBtn" onclick="downloadPDF()" disabled>Download as PDF</button>
+        <button class="btn btn-secondary" id="uploadBtn" onclick="uploadReport()" disabled>Upload to Cloud</button>
+        <button class="btn btn-warning" id="emailBtn" onclick="sendEmail()" disabled>Send Email</button>
+    </div>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+  
+  <script>
+    window.jsPDF = window.jspdf.jsPDF;
+
+    const patientData = {
+      'PID001': { name: 'John Doe', room: 'ICU - 3B', email: 'punithm.4si24scs05@gmail.com' },
+      'PID002': { name: 'Jane Smith', room: 'CCU - 1A', email: 'janesmith@example.com' },
+      'PID003': { name: 'Peter Jones', room: 'General - 5C', email: 'peterjones@example.com' },
+      'PID004': { name: 'Mary Williams', room: 'ICU - 3C', email: 'maryw@example.com' },
+      'PID005': { name: 'David Brown', room: 'Ortho - 2D', email: 'davidb@example.com' },
+      'PID006': { name: 'Susan Davis', room: 'CCU - 1B', email: 'susand@example.com' }
+    };
+    // This variable will hold the last received analysis data and will not be cleared.
+    let currentVitals = {}; 
+
+    function updatePatientInfo() {
+      const selectedId = document.getElementById('patientSelect').value;
+      const patient = patientData[selectedId];
+      document.getElementById('patientName').textContent = patient.name;
+      document.getElementById('patientRoom').textContent = patient.room;
+    }
+    
+    const ws = new WebSocket("ws://localhost:8000/ws/lab_technician");
+
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+        
+        // --- MODIFICATION START ---
+        // This is the key change. We will ONLY listen for the 'final_prediction' message.
+        // This message is sent by the server after the doctor completes an analysis.
+        // By ignoring all other messages (like 'live_vitals' or 'state_reset'),
+        // the data from the last analysis will persist on the screen indefinitely.
+        if (response.type === "final_prediction") {
+            
+            // Store the data for the report generation function
+            currentVitals = response;
+            // The 'response.data' object should contain the single row of vital data
+            const data = response.data || {};
+
+            // Update the single row of vitals in the UI
+            document.getElementById('vital_temp').textContent = data.temperature || 'N/A';
+            document.getElementById('vital_hr').textContent = data.heartrate || 'N/A';
+            document.getElementById('vital_spo2').textContent = data.spo2 || 'N/A';
+            document.getElementById('vital_resp').textContent = data.respRate || 'N/A';
+            document.getElementById('vital_bp').textContent = data.bp_raw || 'N/A';
+            document.getElementById('vital_ecg').textContent = data.ecg_mv || 'N/A';
+            
+            // Update the prediction result in the UI
+            document.getElementById('prediction').textContent = `${response.prediction} (Confidence: ${response.confidence}%)`;
+        }
+        // --- MODIFICATION END ---
+    };
+
+    function getPrescription(prediction) {
+      switch(prediction) {
+            case 'Fever': return 'Consult doctor, monitor temperature, and recommend rest.';
+            case 'Hypoxia': return 'Immediate medical attention required. Check oxygen supply.';
+            case 'Bradycardia': return 'Consult cardiologist. Patient may need further monitoring.';
+            case 'Tachycardia': return 'Consult cardiologist. Advise patient to avoid stimulants.';
+            case 'Hypertension': return 'Consult doctor for blood pressure medication review.';
+            case 'Hypotension': return 'Advise patient to rise slowly. Consult doctor.';
+            case 'Arrhythmia': return 'ECG monitoring recommended. Refer to cardiologist.';
+            case 'Normal': return 'Vitals appear to be within normal ranges. Continue routine monitoring.';
+            default: return 'No specific prescription. Awaiting doctor review.';
+        }
+    }
+
+    function generateReport() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const patient = patientData[selectedId];
+        const data = currentVitals.data || {};
+        
+        // Check if any analysis has been run yet
+        if (!currentVitals.prediction) {
+            document.getElementById('reportOutput').textContent = "No analysis data available. Please ask a doctor to run an analysis first.";
+            return;
+        }
+
+        const reportText = `
+** Patient Health Report **
+
+Patient ID:   ${selectedId}
+Patient Name: ${patient.name}
+Room:         ${patient.room}
+-------------------------------------
+Vitals Snapshot (at time of analysis):
+  - Temperature:    ${data.temperature || 'N/A'} °C
+  - Heart Rate:     ${data.heartrate || 'N/A'} bpm
+  - SpO₂:           ${data.spo2 || 'N/A'} %
+  - Respiratory Rate: ${data.respRate || 'N/A'} rpm
+  - Blood Pressure: ${data.bp_raw || 'N/A'} mmHg
+  - ECG:            ${data.ecg_mv || 'N/A'} mV
+-------------------------------------
+AI Analysis:
+  - Prediction:     ${currentVitals.prediction || 'N/A'}
+  - Confidence:     ${currentVitals.confidence || 'N/A'} %
+  - Model Accuracy: ${currentVitals.model_accuracy || 'N/A'} %
+-------------------------------------
+Doctor's Prescription (Suggested):
+  - ${getPrescription(currentVitals.prediction)}
+        `;
+        
+        document.getElementById('reportOutput').textContent = reportText.trim();
+        document.getElementById('downloadPdfBtn').disabled = false;
+        document.getElementById('uploadBtn').disabled = false;
+        document.getElementById('emailBtn').disabled = false;
+    }
+
+    function downloadPDF() {
+        const reportText = document.getElementById('reportOutput').textContent;
+        const selectedId = document.getElementById('patientSelect').value;
+        const doc = new jsPDF();
+        
+        doc.setFontSize(12);
+        doc.text(reportText, 10, 10);
+        doc.save(`Health_Report_${selectedId}.pdf`);
+    }
+
+    // --- UPDATED: Function to send the report to the backend for S3 upload ---
+    async function uploadReport() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const patientName = document.getElementById('patientName').textContent;
+        const reportText = document.getElementById('reportOutput').textContent;
+
+        if (!reportText || reportText === "Report will appear here...") {
+            alert("Please generate a report first.");
+            return;
+        }
+
+        alert(`Uploading report for ${patientName} to the cloud...`);
+
+        try {
+            const response = await fetch("http://localhost:8000/upload-report", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: selectedId,
+                    patient_name: patientName,
+                    report_text: reportText
+                })
+            });
+
+            const result = await response.json();
+            alert(result.message); // Display the success or error message from the server
+
+        } catch (error) {
+            alert("A network error occurred while trying to upload the report.");
+            console.error("Upload error:", error);
+        }
+    }
+    //function uploadReport() {
+        //alert("Simulating report upload to the cloud...");
+    //}
+
+    async function sendEmail() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const recipientEmail = patientData[selectedId].email;
+        const reportText = document.getElementById('reportOutput').textContent;
+
+        if (!reportText || reportText.includes("Report will appear here...") || reportText.includes("No analysis data available")) {
+            alert("Please generate a valid report first.");
+            return;
+        }
+
+        alert(`Simulating sending report to ${recipientEmail}...`);
+
+        try {
+            const response = await fetch("http://localhost:8000/send-report", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: selectedId,
+                    recipient_email: recipientEmail,
+                    report_text: reportText
+                })
+            });
+
+            const result = await response.json();
+            if (result.status === "success") {
+                alert("Email sent successfully!");
+            } else {
+                alert(`Failed to send email: ${result.message}`);
+            }
+        } catch (error) {
+            alert("An error occurred while trying to send the email.");
+            console.error("Email send error:", error);
+        }
+    }
+  </script>
+</body>
+</html>

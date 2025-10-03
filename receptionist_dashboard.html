@@ -1,0 +1,256 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receptionist Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #fdfdfd; }
+    .header { background-color: #ffc107; color: white; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Receptionist Dashboard</h2>
+    <p class="mb-0">Access: Patient Admission & Financial Records Only</p>
+  </div>
+
+  <div class="section">
+    <h4>Patient Admission Details</h4>
+     <div class="mb-3">
+        <label for="patientSelect" class="form-label"><strong>Select Patient:</strong></label>
+        <select id="patientSelect" class="form-select" onchange="updatePatientInfo()">
+          <option value="PID001" selected>PID001</option>
+          <option value="PID002">PID002</option>
+          <option value="PID003">PID003</option>
+          <option value="PID004">PID004</option>
+          <option value="PID005">PID005</option>
+          <option value="PID006">PID006</option>
+        </select>
+    </div>
+    <p><strong>Patient ID:</strong> <span id="patientId">PID001</span></p>
+    <p><strong>Name:</strong> <span id="patientName">John Doe</span></p>
+    <p><strong>Admission Date:</strong> <span id="admissionDate">2025-07-01</span></p>
+    <p><strong>Room:</strong> <span id="patientRoom">ICU - 3B</span></p>
+  </div>
+
+  <div class="section">
+    <h4>Financial Details</h4>
+    <p><strong>Total Bill:</strong> <span id="totalBill">₹11200</span></p>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+  
+  <script>
+    // NEW: Patient data and update function
+    const patientData = {
+      'PID001': { name: 'John Doe', date: '2025-07-01', room: 'ICU - 3B', bill: '₹11200' },
+      'PID002': { name: 'Jane Smith', date: '2025-07-03', room: 'CCU - 1A', bill: '₹15400' },
+      'PID003': { name: 'Peter Jones', date: '2025-07-05', room: 'General - 5C', bill: '₹8500' },
+      'PID004': { name: 'Mary Williams', date: '2025-07-06', room: 'ICU - 3C', bill: '₹12100' },
+      'PID005': { name: 'David Brown', date: '2025-07-08', room: 'Ortho - 2D', bill: '₹19800' },
+      'PID006': { name: 'Susan Davis', date: '2025-07-09', room: 'CCU - 1B', bill: '₹16200' }
+    };
+
+    function updatePatientInfo() {
+      const selectedId = document.getElementById('patientSelect').value;
+      const patient = patientData[selectedId];
+      document.getElementById('patientId').textContent = selectedId;
+      document.getElementById('patientName').textContent = patient.name;
+      document.getElementById('admissionDate').textContent = patient.date;
+      document.getElementById('patientRoom').textContent = patient.room;
+      document.getElementById('totalBill').textContent = patient.bill;
+    }
+  </script>
+</body>
+</html>-->
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receptionist Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { background-color: #fdfdfd; }
+    .header { background-color: #ffc107; color: #333; padding: 20px; }
+    .section { background: white; padding: 20px; margin-top: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    #billOutput { white-space: pre-wrap; background-color: #f8f9fa; border-radius: 5px; padding: 15px; }
+  </style>
+</head>
+<body class="container py-4">
+  <div class="header text-center">
+    <h2>Receptionist Dashboard</h2>
+    <p class="mb-0">Access: Patient Admission & Financial Records</p>
+  </div>
+
+  <div class="section">
+    <h4>Patient Admission Details</h4>
+     <div class="mb-3">
+        <label for="patientSelect" class="form-label"><strong>Select Patient:</strong></label>
+        <select id="patientSelect" class="form-select" onchange="updatePatientInfo()">
+          <option value="PID001" selected>PID001</option>
+          <option value="PID002">PID002</option>
+          <option value="PID003">PID003</option>
+          <option value="PID004">PID004</option>
+          <option value="PID005">PID005</option>
+          <option value="PID006">PID006</option>
+        </select>
+    </div>
+    <p><strong>Patient ID:</strong> <span id="patientId">PID001</span></p>
+    <p><strong>Name:</strong> <span id="patientName">John Doe</span></p>
+    <p><strong>Admission Date:</strong> <span id="admissionDate">2025-07-01</span></p>
+    <p><strong>Room:</strong> <span id="patientRoom">ICU - 3B</span></p>
+  </div>
+
+  <div class="section">
+    <h4>Financial Details</h4>
+    <table class="table">
+      <tbody>
+        <tr>
+          <td>Consultation Charges:</td>
+          <td class="text-end" id="consultationCharges">₹5000.00</td>
+        </tr>
+        <tr>
+          <td>Room Charges:</td>
+          <td class="text-end" id="roomCharges">₹4200.00</td>
+        </tr>
+        <tr>
+          <td>Lab Test Charges:</td>
+          <td class="text-end" id="labCharges">₹2000.00</td>
+        </tr>
+        <tr class="table-info">
+          <th scope="row">Total Bill:</th>
+          <th class="text-end" id="totalBill">₹11200.00</th>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h4>Generate & Distribute Bill</h4>
+    <button class="btn btn-primary" onclick="generateBill()">Generate Bill</button>
+    <div class="mt-3">
+        <h5>Generated Bill:</h5>
+        <pre id="billOutput">Bill will appear here...</pre>
+    </div>
+    <div class="mt-3">
+        <button class="btn btn-info" id="downloadPdfBtn" onclick="downloadBillAsPDF()" disabled>Download as PDF</button>
+        <button class="btn btn-warning" id="emailBtn" onclick="sendBillEmail()" disabled>Send Email</button>
+    </div>
+  </div>
+
+  <div class="text-center mt-4">
+    <button onclick="window.location.href='index2.html'" class="btn btn-danger">Logout</button>
+  </div>
+  
+  <script>
+    window.jsPDF = window.jspdf.jsPDF;
+
+    // Hardcoded data for demonstration purposes
+    const patientData = {
+      'PID001': { name: 'John Doe', date: '2025-07-01', room: 'ICU - 3B', email: 'punithm.4si24scs05@gmail.com', charges: {consult: '₹5000.00', room: '₹4200.00', lab: '₹2000.00'}, total: '₹11200.00' },
+      'PID002': { name: 'Jane Smith', date: '2025-07-03', room: 'CCU - 1A', email: 'janesmith@example.com', charges: {consult: '₹6000.00', room: '₹7000.00', lab: '₹2400.00'}, total: '₹15400.00' },
+      'PID003': { name: 'Peter Jones', date: '2025-07-05', room: 'General - 5C', email: 'peterjones@example.com', charges: {consult: '₹3000.00', room: '₹4000.00', lab: '₹1500.00'}, total: '₹8500.00' },
+      'PID004': { name: 'Mary Williams', date: '2025-07-06', room: 'ICU - 3C', email: 'maryw@example.com', charges: {consult: '₹5500.00', room: '₹4200.00', lab: '₹2400.00'}, total: '₹12100.00' },
+      'PID005': { name: 'David Brown', date: '2025-07-08', room: 'Ortho - 2D', email: 'davidb@example.com', charges: {consult: '₹8000.00', room: '₹9000.00', lab: '₹2800.00'}, total: '₹19800.00' },
+      'PID006': { name: 'Susan Davis', date: '2025-07-09', room: 'CCU - 1B', email: 'susand@example.com', charges: {consult: '₹6200.00', room: '₹7000.00', lab: '₹3000.00'}, total: '₹16200.00' }
+    };
+
+    function updatePatientInfo() {
+      const selectedId = document.getElementById('patientSelect').value;
+      const patient = patientData[selectedId];
+      document.getElementById('patientId').textContent = selectedId;
+      document.getElementById('patientName').textContent = patient.name;
+      document.getElementById('admissionDate').textContent = patient.date;
+      document.getElementById('patientRoom').textContent = patient.room;
+      document.getElementById('consultationCharges').textContent = patient.charges.consult;
+      document.getElementById('roomCharges').textContent = patient.charges.room;
+      document.getElementById('labCharges').textContent = patient.charges.lab;
+      document.getElementById('totalBill').textContent = patient.total;
+    }
+
+    function generateBill() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const patient = patientData[selectedId];
+        
+        const billText = `
+** Hospital Bill Invoice **
+
+Patient ID:     ${selectedId}
+Patient Name:   ${patient.name}
+Admission Date: ${patient.date}
+Room:           ${patient.room}
+-------------------------------------
+Bill Details:
+  - Consultation Charges:   ${patient.charges.consult}
+  - Room Charges:           ${patient.charges.room}
+  - Lab Test Charges:       ${patient.charges.lab}
+-------------------------------------
+Total Amount Due:   ${patient.total}
+-------------------------------------
+
+Thank you for choosing Smart Health Services.
+        `;
+        
+        document.getElementById('billOutput').textContent = billText.trim();
+        document.getElementById('downloadPdfBtn').disabled = false;
+        document.getElementById('emailBtn').disabled = false;
+    }
+
+    function downloadBillAsPDF() {
+        const billText = document.getElementById('billOutput').textContent;
+        const selectedId = document.getElementById('patientSelect').value;
+        const doc = new jsPDF();
+        
+        doc.setFontSize(12);
+        doc.text(billText, 10, 10);
+        doc.save(`Invoice_${selectedId}.pdf`);
+    }
+
+    async function sendBillEmail() {
+        const selectedId = document.getElementById('patientSelect').value;
+        const recipientEmail = patientData[selectedId].email;
+        const reportText = document.getElementById('billOutput').textContent;
+
+        if (!reportText || reportText === "Bill will appear here...") {
+            alert("Please generate a bill first.");
+            return;
+        }
+
+        alert(`Sending bill to ${recipientEmail}...`);
+
+        try {
+            const response = await fetch("http://localhost:8000/send-report", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: selectedId,
+                    recipient_email: recipientEmail,
+                    report_text: reportText // Server endpoint can be reused
+                })
+            });
+
+            const result = await response.json();
+            if (result.status === "success") {
+                alert("Bill sent successfully!");
+            } else {
+                alert(`Failed to send email: ${result.message}`);
+            }
+        } catch (error) {
+            alert("An error occurred while trying to send the email.");
+            console.error("Email send error:", error);
+        }
+    }
+  </script>
+</body>
+</html>
